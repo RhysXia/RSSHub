@@ -2,7 +2,7 @@ import { DataItem, Route } from '@/types';
 import cache from '@/utils/cache';
 import got from '@/utils/got';
 import { load } from 'cheerio';
-import asyncPool from 'tiny-async-pool';
+import pMap from 'p-map';
 
 type NewsCategory = {
     title: string;
@@ -50,7 +50,7 @@ const handler: Route['handler'] = async (ctx) => {
                 link: absoluteLink,
             };
         })
-        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        .toSorted((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
         .slice(0, 10);
 
     const fetchDataItem = (item: { title: string; date: string; link: string }) =>
@@ -77,11 +77,7 @@ const handler: Route['handler'] = async (ctx) => {
             } as DataItem;
         });
 
-    const dataItems: DataItem[] = [];
-
-    for await (const item of await asyncPool(1, contentLinkList, fetchDataItem)) {
-        dataItems.push(item as DataItem);
-    }
+    const dataItems: DataItem[] = await pMap(contentLinkList, fetchDataItem, { concurrency: 1 });
 
     return {
         title: `中国人事考试网-${NEWS_TYPES[category].title}`,
